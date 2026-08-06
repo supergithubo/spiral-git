@@ -23,6 +23,8 @@ PY=.venv/bin/python
 "$PY" spiral.py --column contributions --theme dark  --out out/contributions.png
 "$PY" spiral.py --column commits       --theme dark  --out out/commits.png
 "$PY" spiral.py --column contributions --theme light --out out/contributions-light.png
+"$PY" spiral.py --column contributions --theme light --style classic --out out/classic.png
+"$PY" spiral.py --column contributions --theme dark  --style classic --out out/classic-dark.png
 
 echo
 ls -1 out/

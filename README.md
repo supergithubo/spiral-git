@@ -73,14 +73,28 @@ breakdown.
 .venv/bin/python spiral.py --column commits --theme light --out out/commits.png
 ```
 
+Two styles over the same geometry:
+
+- **`modern`** (default) — Jan 1 at 12 o'clock, month names around the rim,
+  dots carrying both size and a Spectral color ramp.
+- **`classic`** — spiralize's own default rendering: Jan 1 at 3 o'clock, each
+  loop a filled grey ribbon separated by background-colored gaps, monochrome
+  dots sized by count only, year labels set vertically along the east axis,
+  dashed month spokes and no month names.
+
+```sh
+.venv/bin/python spiral.py --style classic --theme light --out out/classic.png
+```
+
 | flag | default | notes |
 |---|---|---|
 | `--column` | `contributions` | or `commits` |
+| `--style` | `modern` | or `classic` |
 | `--theme` | `dark` | or `light` |
 | `--cap` | `30` | floor for the dot-size ceiling; the actual cap is `max(cap, 0.9 × busiest day)`, so a few 200-commit days can't flatten everything else |
 | `--max-pt` | `20` | largest dot diameter in points — drop it if your loops overlap |
 | `--loop-gap` | `1.0` | radial distance between years; raise it for a long history |
-| `--inner-radius` | `2.2` | size of the hole in the middle |
+| `--inner-radius` | per style | `2.2` for `modern`, `0.6` for `classic` |
 | `--size` / `--dpi` | `11` / `160` | figure inches and resolution |
 | `--no-normalize-year` | off | by default day-of-year is divided by that year's real length so leap years stay aligned; this turns that off |
 | `--title` | auto | |
