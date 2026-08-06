@@ -1,7 +1,8 @@
 # spiral-git
 
 Your entire GitHub history as a spiral — one loop per calendar year, angle =
-day-of-year, dot size = that day's activity. A Python port of
+day-of-year, and the day's activity shown as dot size, colour or a horizon
+chart. A Python port of
 [jokergoo's spiralize post](https://jokergoo.github.io/2022/02/03/spiral-visualization-of-daily-git-commits/),
 pointed at a whole account instead of a single local repo.
 
@@ -55,25 +56,30 @@ the token can override:
 Two commands, and only the first touches the network:
 
 ```sh
-./fetch.sh    # pull  -> data/contributions.csv   (needs a token)
-./build.sh    # build -> docs/spiral.png + .svg   (no token, ~1s)
+./fetch.sh    # pull  -> data/contributions.csv        (needs a token)
+./build.sh    # build -> all six docs/ images          (no token, ~6s)
 ```
 
 Re-run `./build.sh` as often as you like while tuning — it reads the cached
 CSV, so there's no reason to re-fetch. Pull fresh numbers only when you want
 them. `./run.sh` does both in sequence if you'd rather have one command.
 
-`./build.sh` writes to `docs/spiral.png`, the image embedded above, so a
-rebuild updates the README in place.
+With no arguments `./build.sh` refreshes **every image the README embeds** —
+all three styles in both themes, `docs/<style>-<theme>.png` — so one run keeps
+the whole page current.
 
-Both scripts pass extra flags through to the Python underneath, and those
-override the defaults:
+Give it any argument and it switches to a single explicit render instead,
+passing the flags straight through:
 
 ```sh
 ./fetch.sh --since 2018
-./build.sh --theme dark
-./build.sh --column commits --out docs/commits.png
+./build.sh --style heatmap --out docs/heatmap-light.png
+./build.sh --column commits --theme dark --out docs/commits.png
 ```
+
+The batch skips the SVG twins (`--no-svg`), since six of them is about 5 MB
+regenerated every run and all of it gitignored. An explicit render still
+writes one alongside the PNG.
 
 Fetch options:
 
@@ -100,9 +106,29 @@ counts](#what-actually-counts)).
 ./build.sh --column commits --theme dark --out docs/commits.png
 ```
 
+Three encodings over the same geometry, the three the post compares:
+
+| `--style` | what encodes the count | spiralize equivalent |
+|---|---|---|
+| `dots` (default) | dot area, one dot per active day | `spiral_points()` |
+| `heatmap` | colour filling the ribbon, one cell per day, on a reversed Spectral ramp | `spiral_rect()` |
+| `horizon` | a horizon chart folded into the ribbon: the range is cut into four slices, each drawn from the same inner edge and rescaled to full height, palest slice first | `spiral_horizon()` |
+
+A bare `./build.sh` renders all three. To render one on its own:
+
+```sh
+./build.sh --style heatmap --out docs/heatmap-light.png
+```
+
+In `heatmap` and `horizon` a day with no activity is left undrawn, so the grey
+ribbon shows through — that's what separates a quiet stretch from a
+low-but-nonzero one. Each carries the legend its encoding needs: a continuous
+colour bar for `heatmap`, labelled interval swatches for `horizon`.
+
 | flag | default | notes |
 |---|---|---|
 | `--in` | `data/contributions.csv` | source CSV |
+| `--style` | `dots` | `heatmap` or `horizon` |
 | `--column` | `contributions` | or `commits` |
 | `--theme` | `light` | or `dark` |
 | `--cap` | `30` | floor for the dot-size ceiling; the actual cap is `max(cap, 0.9 × busiest day)`, so a few 200-commit days can't flatten everything else |
@@ -113,7 +139,9 @@ counts](#what-actually-counts)).
 | `--no-normalize-year` | off | by default day-of-year is divided by that year's real length so leap years stay aligned; this turns that off |
 | `--title` | none | the legend title carries the caption, so a heading appears only if you ask for one |
 
-An SVG is written alongside any non-SVG output.
+| `--no-svg` | off | skip the SVG twin; the batch build uses this |
+
+An SVG is written alongside any non-SVG output unless `--no-svg` is passed.
 
 Two constants near the top of `spiral.py` control proportions the flags don't
 reach:
@@ -122,21 +150,28 @@ reach:
 |---|---|---|
 | `BAND_FRACTION` | `0.62` | share of the loop pitch filled by the ribbon; the rest is the gap |
 | `LABEL_BAND_RATIO` | `0.85` | year-label height as a share of the ribbon width. Rotated 90°, a year's glyph height runs radially, so this is what keeps it inside the band. Digit cap-height is roughly 0.7 em, so past about `1.4` the glyphs spill over the gaps |
+| `HORIZON_BANDS` | `4` | slices the horizon chart folds the range into. `HORIZON_COLORS` must have one colour per slice |
+| `SPECTRAL_R` | 11 stops | the heatmap ramp |
 
 ## Reading it
 
 Jan 1 is at 3 o'clock and time runs clockwise, so every loop begins on the east
 axis — which is why the year labels stack along it as a ruler. Years read
-outward, innermost loop first. Each loop is a filled ribbon; dot area is the
-day's count, clamped so outliers can't flatten the scale. The dashed spokes
-mark month boundaries, and the legend title carries the grand total.
+outward, innermost loop first. Each loop is a filled ribbon; how the day's
+count is drawn inside it depends on `--style`. The dashed spokes mark month
+boundaries, and the legend title carries the grand total.
+
+With the default `dots`, area encodes the count, clamped so outliers can't
+flatten the scale. `heatmap` and `horizon` use the full ribbon width instead,
+so they hold up better on a dense history — which is the comparison the
+original post is making.
 
 ## Layout
 
 ```
 setup.sh                 create .venv, install matplotlib + requests
 fetch.sh                 -> data/contributions.csv   (the only script that needs a token)
-build.sh                 -> docs/spiral.png + .svg   (no network)
+build.sh                 -> all six docs/ images     (no network)
 run.sh                   fetch.sh then build.sh
 
 fetch_contributions.py   GraphQL client behind fetch.sh
@@ -144,7 +179,7 @@ spiral.py                renderer behind build.sh
 
 data/                    fetched CSVs        (gitignored)
 docs/spiral.png          the image above     (committed)
-docs/spiral.svg          vector twin         (gitignored — ~1.2 MB of scatter points)
+docs/*.svg               vector twins        (gitignored — ~1 MB each)
 .env                     GITHUB_TOKEN        (gitignored)
 ```
 
