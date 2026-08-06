@@ -63,9 +63,15 @@ Fetch options:
 | `--out PATH` | CSV destination |
 
 The CSV has three columns — `date`, `contributions`, `commits`.
-`contributions` is the green-squares number (commits + PRs + issues +
-reviews); `commits` is commit-only, reconstructed from the per-repository
-breakdown.
+
+`contributions` is the green-squares number: commits **plus** issues opened,
+pull requests opened, PR reviews submitted, and repositories created. It is
+the sum GitHub itself renders on your profile.
+
+`commits` is commit-only, reconstructed from the per-repository breakdown —
+so it is a strict subset of `contributions`, and it is only complete when the
+token carries `repo` scope (see [What actually
+counts](#what-actually-counts)).
 
 ## Render
 
@@ -108,6 +114,40 @@ loop is your first year. A dot's area and color both encode the same number
 (redundant on purpose; area alone is hard to judge, color alone loses the
 small values against the background).
 
+## What actually counts
+
+These plots inherit GitHub's contribution rules wholesale — they are not a raw
+`git log` over everything you've ever written.
+
+**Forks are excluded.** GitHub only counts commits made in a standalone
+repository; commits pushed to a fork never reach the contribution calendar, no
+matter whose fork it is or what the token can see. If those commits later land
+upstream through a pull request, the *PR* counts as one contribution — but the
+individual commits still don't. There is no API flag that turns this off. If
+your fork work matters to you, the only way to capture it is to clone the forks
+and aggregate `git log --author=<you>` locally.
+
+Two further exclusions from the same rule set: commits outside the default
+branch (and `gh-pages`) don't count, and commits authored under an email that
+isn't [linked to your account](https://github.com/settings/emails) don't count.
+
+**Private repositories are included.** Their daily numbers land in the
+`contributions` column like any other, they're just anonymized — GitHub reports
+them as an opaque `restrictedContributionsCount` rather than naming the repo.
+You can confirm this in the fetcher's per-year output: a year printed as
+`2,119 contributions (45 commit-contribs, 2,061 private)` has the 2,061 private
+ones *inside* the 2,119, otherwise the total would read 58.
+
+This is why `--column contributions` is the honest default and `commits` is
+not: the `commits` column is rebuilt from the per-repository breakdown, which
+private repos only appear in when the token carries `repo` scope. Two
+prerequisites for private work to show up at all:
+
+1. A token with `repo` scope (needed only for the `commits` column — the
+   `contributions` column works without it).
+2. Profile → **Contribution settings → Include private contributions on my
+   profile** switched on.
+
 ## Caveats
 
 - The calendar API returns at most one year per call, so the fetcher makes one
@@ -123,6 +163,7 @@ small values against the background).
 - Commit-only counts also undercount a repository with more than 100 active
   days in a single year; the fetcher prints a warning naming any repo-year
   affected. The `contributions` column is exact regardless.
-- Forked-repo commits and commits to non-default branches follow GitHub's own
-  contribution rules, which exclude some of them. This mirrors your profile
-  graph — it is not a raw `git log` count.
+- Forks, non-default branches and unlinked commit emails are all excluded by
+  GitHub before the data ever reaches us — see [What actually
+  counts](#what-actually-counts). This mirrors your profile graph exactly; it
+  is not a raw `git log` count.
