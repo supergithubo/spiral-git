@@ -17,4 +17,7 @@ if [[ ! -f data/contributions.csv ]]; then
   exit 1
 fi
 
-exec "$PY" spiral.py --out docs/spiral.png "$@"
+# --dpi 100 lands the PNG at ~870px: twice the 420px the README displays it at,
+# so it stays crisp on retina, and small enough that it still reads as a figure
+# rather than filling the page in a viewer that ignores the img width.
+exec "$PY" spiral.py --out docs/spiral.png --dpi 100 "$@"
