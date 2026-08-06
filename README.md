@@ -14,16 +14,17 @@ restart) show up as spokes, which a linear heatmap can't show you.
 ## Setup
 
 ```sh
-uv venv .venv && uv pip install --python .venv/bin/python matplotlib requests
+./setup.sh
 ```
 
-(`uv` rather than `python -m venv` because Ubuntu ships 3.12 without
-`ensurepip`. If you'd rather, `sudo apt install python3.12-venv` and use
-stdlib venv.)
+Creates `.venv` and installs matplotlib and requests. It uses `uv` rather than
+`python -m venv` because Ubuntu ships 3.12 without `ensurepip`; if you'd rather
+not install uv, `sudo apt install python3.12-venv` and use the stdlib venv.
 
 ## Token
 
-`fetch_contributions.py` reads `GITHUB_TOKEN`. Mint one at
+`./fetch.sh` reads `GITHUB_TOKEN` (or `GITHUB_PAT`) from the environment or
+from a gitignored `.env` beside the scripts. Mint one at
 <https://github.com/settings/tokens>:
 
 - **Classic token** — tick `read:user`. Add `repo` if you want commits in
@@ -32,7 +33,7 @@ stdlib venv.)
   read access to specific repos for private counts.
 
 ```sh
-export GITHUB_TOKEN=ghp_xxxxxxxxxxxx
+echo 'GITHUB_TOKEN=ghp_xxxxxxxxxxxx' > .env    # or: export GITHUB_TOKEN=...
 ```
 
 Two settings on GitHub's side affect what comes back, and neither is something
@@ -48,14 +49,28 @@ the token can override:
 
 ## Run
 
+Two commands, and only the first touches the network:
+
 ```sh
-export GITHUB_TOKEN=...
-.venv/bin/python fetch_contributions.py             # -> data/contributions.csv
-.venv/bin/python spiral.py --out docs/spiral.png    # -> docs/spiral.png + .svg
+./fetch.sh    # pull  -> data/contributions.csv   (needs a token)
+./build.sh    # build -> docs/spiral.png + .svg   (no token, ~1s)
 ```
 
-Or `./run.sh`, which does both. It writes to `docs/spiral.png` — the image
-embedded above — so regenerating updates the README in place.
+Re-run `./build.sh` as often as you like while tuning — it reads the cached
+CSV, so there's no reason to re-fetch. Pull fresh numbers only when you want
+them. `./run.sh` does both in sequence if you'd rather have one command.
+
+`./build.sh` writes to `docs/spiral.png`, the image embedded above, so a
+rebuild updates the README in place.
+
+Both scripts pass extra flags through to the Python underneath, and those
+override the defaults:
+
+```sh
+./fetch.sh --since 2018
+./build.sh --theme dark
+./build.sh --column commits --out docs/commits.png
+```
 
 Fetch options:
 
@@ -79,29 +94,56 @@ counts](#what-actually-counts)).
 ## Render
 
 ```sh
-.venv/bin/python spiral.py --column commits --theme dark --out docs/commits.png
+./build.sh --column commits --theme dark --out docs/commits.png
 ```
 
 | flag | default | notes |
 |---|---|---|
+| `--in` | `data/contributions.csv` | source CSV |
 | `--column` | `contributions` | or `commits` |
 | `--theme` | `light` | or `dark` |
 | `--cap` | `30` | floor for the dot-size ceiling; the actual cap is `max(cap, 0.9 × busiest day)`, so a few 200-commit days can't flatten everything else |
-| `--max-pt` | `20` | largest dot diameter in points — drop it if your loops overlap |
+| `--min-pt` / `--max-pt` | `1` / `20` | smallest and largest dot diameter in points — drop the max if your loops overlap |
 | `--loop-gap` | `1.0` | radial distance between years; raise it for a long history |
 | `--inner-radius` | `0.6` | size of the hole in the middle |
 | `--size` / `--dpi` | `11` / `160` | figure inches and resolution |
 | `--no-normalize-year` | off | by default day-of-year is divided by that year's real length so leap years stay aligned; this turns that off |
-| `--title` | auto | |
+| `--title` | none | the legend title carries the caption, so a heading appears only if you ask for one |
 
 An SVG is written alongside any non-SVG output.
+
+Two constants near the top of `spiral.py` control proportions the flags don't
+reach:
+
+| constant | default | effect |
+|---|---|---|
+| `BAND_FRACTION` | `0.62` | share of the loop pitch filled by the ribbon; the rest is the gap |
+| `LABEL_BAND_RATIO` | `0.85` | year-label height as a share of the ribbon width. Rotated 90°, a year's glyph height runs radially, so this is what keeps it inside the band. Digit cap-height is roughly 0.7 em, so past about `1.4` the glyphs spill over the gaps |
 
 ## Reading it
 
 Jan 1 is at 3 o'clock and time runs clockwise, so every loop begins on the east
 axis — which is why the year labels stack along it as a ruler. Years read
 outward, innermost loop first. Each loop is a filled ribbon; dot area is the
-day's count, clamped so outliers can't flatten the scale.
+day's count, clamped so outliers can't flatten the scale. The dashed spokes
+mark month boundaries, and the legend title carries the grand total.
+
+## Layout
+
+```
+setup.sh                 create .venv, install matplotlib + requests
+fetch.sh                 -> data/contributions.csv   (the only script that needs a token)
+build.sh                 -> docs/spiral.png + .svg   (no network)
+run.sh                   fetch.sh then build.sh
+
+fetch_contributions.py   GraphQL client behind fetch.sh
+spiral.py                renderer behind build.sh
+
+data/                    fetched CSVs        (gitignored)
+docs/spiral.png          the image above     (committed)
+docs/spiral.svg          vector twin         (gitignored — ~1.2 MB of scatter points)
+.env                     GITHUB_TOKEN        (gitignored)
+```
 
 ## What actually counts
 
