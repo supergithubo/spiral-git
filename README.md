@@ -5,6 +5,8 @@ day-of-year, dot size = that day's activity. A Python port of
 [jokergoo's spiralize post](https://jokergoo.github.io/2022/02/03/spiral-visualization-of-daily-git-commits/),
 pointed at a whole account instead of a single local repo.
 
+![Daily GitHub contributions plotted as a spiral, one loop per year from 2014 to 2026](docs/spiral.png)
+
 Because angle is day-of-year, the same calendar date sits on the same radial
 line in every loop — so seasonal habits (the December lull, the September
 restart) show up as spokes, which a linear heatmap can't show you.

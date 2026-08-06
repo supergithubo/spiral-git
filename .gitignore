@@ -5,9 +5,11 @@ __pycache__/
 # Secrets
 .env
 
-# Generated data and figures
+# Generated data and figures. docs/spiral.png is committed on purpose -- the
+# README embeds it -- but the SVG beside it is ~1.2 MB of scatter points.
 data/
 out/
+docs/*.svg
 
 # Claude Code harness
 .claude/
