@@ -1,7 +1,7 @@
 # spiral-git
 
 Your entire GitHub history as a spiral — one loop per calendar year, angle =
-day-of-year, dot size and color = that day's activity. A Python port of
+day-of-year, dot size = that day's activity. A Python port of
 [jokergoo's spiralize post](https://jokergoo.github.io/2022/02/03/spiral-visualization-of-daily-git-commits/),
 pointed at a whole account instead of a single local repo.
 
@@ -48,11 +48,12 @@ the token can override:
 
 ```sh
 export GITHUB_TOKEN=...
-.venv/bin/python fetch_contributions.py            # -> data/contributions.csv
-.venv/bin/python spiral.py --out out/spiral.png    # -> out/spiral.png + .svg
+.venv/bin/python fetch_contributions.py             # -> data/contributions.csv
+.venv/bin/python spiral.py --out docs/spiral.png    # -> docs/spiral.png + .svg
 ```
 
-Or `./run.sh`, which does both.
+Or `./run.sh`, which does both. It writes to `docs/spiral.png` — the image
+embedded above — so regenerating updates the README in place.
 
 Fetch options:
 
@@ -76,31 +77,17 @@ counts](#what-actually-counts)).
 ## Render
 
 ```sh
-.venv/bin/python spiral.py --column commits --theme light --out out/commits.png
-```
-
-Two styles over the same geometry:
-
-- **`modern`** (default) — Jan 1 at 12 o'clock, month names around the rim,
-  dots carrying both size and a Spectral color ramp.
-- **`classic`** — spiralize's own default rendering: Jan 1 at 3 o'clock, each
-  loop a filled grey ribbon separated by background-colored gaps, monochrome
-  dots sized by count only, year labels set vertically along the east axis,
-  dashed month spokes and no month names.
-
-```sh
-.venv/bin/python spiral.py --style classic --theme light --out out/classic.png
+.venv/bin/python spiral.py --column commits --theme dark --out docs/commits.png
 ```
 
 | flag | default | notes |
 |---|---|---|
 | `--column` | `contributions` | or `commits` |
-| `--style` | `modern` | or `classic` |
-| `--theme` | `dark` | or `light` |
+| `--theme` | `light` | or `dark` |
 | `--cap` | `30` | floor for the dot-size ceiling; the actual cap is `max(cap, 0.9 × busiest day)`, so a few 200-commit days can't flatten everything else |
 | `--max-pt` | `20` | largest dot diameter in points — drop it if your loops overlap |
 | `--loop-gap` | `1.0` | radial distance between years; raise it for a long history |
-| `--inner-radius` | per style | `2.2` for `modern`, `0.6` for `classic` |
+| `--inner-radius` | `0.6` | size of the hole in the middle |
 | `--size` / `--dpi` | `11` / `160` | figure inches and resolution |
 | `--no-normalize-year` | off | by default day-of-year is divided by that year's real length so leap years stay aligned; this turns that off |
 | `--title` | auto | |
@@ -109,10 +96,10 @@ An SVG is written alongside any non-SVG output.
 
 ## Reading it
 
-Jan 1 is at 12 o'clock and time runs clockwise. Years read outward — innermost
-loop is your first year. A dot's area and color both encode the same number
-(redundant on purpose; area alone is hard to judge, color alone loses the
-small values against the background).
+Jan 1 is at 3 o'clock and time runs clockwise, so every loop begins on the east
+axis — which is why the year labels stack along it as a ruler. Years read
+outward, innermost loop first. Each loop is a filled ribbon; dot area is the
+day's count, clamped so outliers can't flatten the scale.
 
 ## What actually counts
 

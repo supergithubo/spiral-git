@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Fetch then render, in both themes and both columns.
+# Fetch the contribution history, then render it to docs/spiral.png -- the
+# image the README embeds, so regenerating here updates the README too.
 set -euo pipefail
 cd "$(dirname "$0")"
 
@@ -20,11 +21,7 @@ PY=.venv/bin/python
 [[ -x "$PY" ]] || { echo "no venv; run the setup step in README.md" >&2; exit 1; }
 
 "$PY" fetch_contributions.py "$@"
-"$PY" spiral.py --column contributions --theme dark  --out out/contributions.png
-"$PY" spiral.py --column commits       --theme dark  --out out/commits.png
-"$PY" spiral.py --column contributions --theme light --out out/contributions-light.png
-"$PY" spiral.py --column contributions --theme light --style classic --out out/classic.png
-"$PY" spiral.py --column contributions --theme dark  --style classic --out out/classic-dark.png
+"$PY" spiral.py --column contributions --theme light --out docs/spiral.png
 
 echo
-ls -1 out/
+ls -1 docs/
