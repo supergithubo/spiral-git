@@ -153,8 +153,32 @@ colour bar for `heatmap`, labelled interval swatches for `horizon`.
 | `--title` | none | the legend title carries the caption, so a heading appears only if you ask for one |
 
 | `--no-svg` | off | skip the SVG twin; the batch build uses this |
+| `--adaptive-svg` | off | make the SVG follow the viewer's colour scheme — see below |
 
 An SVG is written alongside any non-SVG output unless `--no-svg` is passed.
+
+### Theme-adaptive SVG
+
+Colours are normally baked in at render time, so a `--theme light` file stays
+light on a dark page and vice versa. `--adaptive-svg` injects a
+`prefers-color-scheme` media query that overrides the four theme colours —
+background, ribbon, ink, spokes — turning one file into something that works on
+either background:
+
+```sh
+./build.sh --style dots --adaptive-svg --out docs/dots.png
+```
+
+Data colours are deliberately left alone. The Spectral ramp and the horizon
+reds encode counts, and a count means the same thing in either scheme; on a
+heatmap that is 4 theme colours swapped and 40 data colours untouched.
+
+Two limits worth knowing:
+
+- **Browsers only.** GitHub strips `<style>` out of the SVGs it serves, so this
+  does nothing in a README. It is for your own site or a local viewer.
+- **Explicit renders only.** A bare `./build.sh` never applies it — the batch
+  writes no SVGs at all. Ask for it on a single render, as above.
 
 Two constants near the top of `spiral.py` control proportions the flags don't
 reach:

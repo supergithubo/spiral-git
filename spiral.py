@@ -391,6 +391,44 @@ def build(counts, args, theme):
     return fig
 
 
+def make_svg_adaptive(path, theme_name):
+    """Rewrite a rendered SVG so it follows the viewer's colour scheme.
+
+    Matplotlib bakes every colour in as an inline `style="fill: #rrggbb"`, so
+    the file is a fixed image. Injecting a media query that overrides just the
+    four theme colours -- background, ribbon, ink, spokes -- turns it into one
+    file that works on either background. Data colours are deliberately left
+    alone: the Spectral ramp and the horizon reds mean the same thing in
+    either scheme.
+
+    Only browsers honour this. GitHub strips <style> from the SVGs it serves.
+    """
+    other = "dark" if theme_name == "light" else "light"
+    src, dst = THEMES[theme_name], THEMES[other]
+
+    rules = []
+    for key in ("bg", "band", "fg", "muted"):
+        a, b = src[key].lower(), dst[key].lower()
+        if a == b:
+            continue
+        # Match fill and stroke separately: a stroked path with `fill: none`
+        # would otherwise get filled in.
+        rules.append(f'    [style*="fill: {a}"] {{ fill: {b} !important; }}')
+        rules.append(f'    [style*="stroke: {a}"] {{ stroke: {b} !important; }}')
+
+    block = (
+        "<style>\n"
+        f"  @media (prefers-color-scheme: {other}) {{\n"
+        + "\n".join(rules)
+        + "\n  }\n</style>\n"
+    )
+
+    text = open(path).read()
+    # Slot it in directly after the opening <svg ...> tag.
+    end = text.index(">", text.index("<svg")) + 1
+    open(path, "w").write(text[:end] + "\n" + block + text[end:])
+
+
 def main():
     """Parse flags, render, and write the PNG plus an SVG twin."""
     ap = argparse.ArgumentParser(description=__doc__,
@@ -418,6 +456,10 @@ def main():
     ap.add_argument("--no-svg", dest="svg", action="store_false",
                     help="skip the SVG twin; each one is roughly 1 MB of "
                          "individual scatter or cell elements")
+    ap.add_argument("--adaptive-svg", action="store_true",
+                    help="make the SVG follow the viewer's light/dark scheme "
+                         "instead of baking in --theme (browsers only; GitHub "
+                         "strips the <style> this needs)")
     args = ap.parse_args()
 
     counts = read_counts(args.infile, args.column)
@@ -428,9 +470,22 @@ def main():
     print(f"wrote {args.out}", file=sys.stderr)
 
     stem, ext = os.path.splitext(args.out)
-    if args.svg and ext.lower() != ".svg":
+    svgs = []
+    if ext.lower() == ".svg":
+        svgs.append(args.out)
+    elif args.svg:
         fig.savefig(stem + ".svg", facecolor=fig.get_facecolor(), bbox_inches="tight")
         print(f"wrote {stem}.svg", file=sys.stderr)
+        svgs.append(stem + ".svg")
+
+    if args.adaptive_svg:
+        if not svgs:
+            print("--adaptive-svg had no effect: no SVG was written",
+                  file=sys.stderr)
+        for path in svgs:
+            make_svg_adaptive(path, args.theme)
+            print(f"made {path} follow the viewer's colour scheme",
+                  file=sys.stderr)
 
 
 if __name__ == "__main__":
