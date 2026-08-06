@@ -1,0 +1,15 @@
+# Python
+.venv/
+__pycache__/
+
+# Secrets
+.env
+
+# Generated data and figures
+data/
+out/
+
+# Claude Code harness
+.claude/
+.claude.json
+CLAUDE.md
