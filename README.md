@@ -6,10 +6,22 @@ chart. A Python port of
 [jokergoo's spiralize post](https://jokergoo.github.io/2022/02/03/spiral-visualization-of-daily-git-commits/),
 pointed at a whole account instead of a single local repo.
 
-<p align="center">
-  <img src="docs/spiral.png" width="420"
-       alt="Daily GitHub contributions plotted as a spiral, one loop per year from 2014 to 2026">
-</p>
+<table>
+<tr>
+<td align="center">
+  <img src="docs/dots-light.png" width="230" alt="Daily contributions as dot area, one loop per year">
+  <br><code>--style dots</code>
+</td>
+<td align="center">
+  <img src="docs/heatmap-light.png" width="230" alt="Daily contributions as a colour heatmap around the spiral">
+  <br><code>--style heatmap</code>
+</td>
+<td align="center">
+  <img src="docs/horizon-light.png" width="230" alt="Daily contributions as a horizon chart folded into the spiral">
+  <br><code>--style horizon</code>
+</td>
+</tr>
+</table>
 
 Because angle is day-of-year, the same calendar date sits on the same radial
 line in every loop — so seasonal habits (the December lull, the September
@@ -114,7 +126,8 @@ Three encodings over the same geometry, the three the post compares:
 | `heatmap` | colour filling the ribbon, one cell per day, on a reversed Spectral ramp | `spiral_rect()` |
 | `horizon` | a horizon chart folded into the ribbon: the range is cut into four slices, each drawn from the same inner edge and rescaled to full height, palest slice first | `spiral_horizon()` |
 
-A bare `./build.sh` renders all three. To render one on its own:
+All three are shown at the top of this page, and a bare `./build.sh` refreshes
+them. To render one on its own:
 
 ```sh
 ./build.sh --style heatmap --out docs/heatmap-light.png
@@ -178,10 +191,19 @@ fetch_contributions.py   GraphQL client behind fetch.sh
 spiral.py                renderer behind build.sh
 
 data/                    fetched CSVs        (gitignored)
-docs/spiral.png          the image above     (committed)
+docs/dots-light.png      the six images the README embeds, one per style x
+docs/dots-dark.png       theme. All committed, all rebuilt by a bare
+docs/heatmap-light.png   ./build.sh
+docs/heatmap-dark.png
+docs/horizon-light.png
+docs/horizon-dark.png
 docs/*.svg               vector twins        (gitignored — ~1 MB each)
 .env                     GITHUB_TOKEN        (gitignored)
 ```
+
+The README embeds the three `-light` images. The `-dark` variants are built and
+committed alongside them for use elsewhere — a dark-themed page, a social
+preview — but nothing on this page points at them.
 
 ## What actually counts
 
