@@ -99,17 +99,24 @@ def band_polygon(year, year0, r0, loop_gap, width, steps=400):
     return outer + inner[::-1]
 
 
-def size_ticks(cap):
-    """Round legend values that span the size scale without crowding it."""
-    candidates = [1, 2, 5, 10, 20, 25, 30, 40, 50, 60, 75, 100, 150, 200]
-    ticks = [t for t in candidates if t <= cap]
-    if not ticks:
-        return [max(1, int(cap))]
-    while len(ticks) > 6:
-        ticks = ticks[::2] if len(ticks) > 8 else ticks[1:]
-    if ticks[-1] < cap * 0.7:
-        ticks.append(int(cap))
-    return ticks
+def size_ticks(cap, want=4):
+    """Evenly stepped round values spanning the size scale.
+
+    spiralize's legend runs a single step repeated (5, 10, 15, 20) rather than
+    an ad-hoc set, so pick the round step nearest cap/want and walk it up.
+    """
+    if cap <= 0:
+        return [1]
+    raw = cap / want
+    mag = 10 ** math.floor(math.log10(raw))
+    # On a tie prefer the coarser step, which yields fewer, cleaner rows.
+    step = min((abs(m * mag - raw), -m * mag, m * mag) for m in (1, 2, 2.5, 5, 10))[2]
+    step = max(step, 1)  # counts are integers, so never step in fractions
+    ticks, v = [], step
+    while v <= cap + 1e-9 and len(ticks) < 6:
+        ticks.append(int(v) if float(v).is_integer() else round(v, 1))
+        v += step
+    return ticks or [max(1, int(cap))]
 
 
 def build(counts, args, theme):
@@ -169,17 +176,6 @@ def build(counts, args, theme):
     ax.scatter(xs, ys, s=sizes, color=theme["fg"], linewidths=0,
                alpha=0.9, zorder=3)
 
-    # Year labels set vertically along the axis each loop starts on.
-    for year in range(year0, year1 + 1):
-        r = r0 + (year - year0) * gap
-        ax.text(
-            r * math.cos(START_ANGLE), r * math.sin(START_ANGLE), str(year),
-            ha="center", va="center", rotation=90, color=theme["fg"],
-            fontsize=args.size * 0.95, family="DejaVu Sans", zorder=4,
-            bbox=dict(boxstyle="square,pad=0.10", fc=theme["bg"],
-                      ec="none", alpha=0.75),
-        )
-
     total = sum(counts.values())
     handles = [
         Line2D(
@@ -190,15 +186,19 @@ def build(counts, args, theme):
         )
         for t in size_ticks(cap)
     ]
-    # Top-left inside the frame, as in spiralize's own output.
+    # Top-left inside the frame, as in spiralize's own output: rows packed
+    # tight enough that consecutive swatches nearly touch, dots in a narrow
+    # column, and a bold two-line title carrying the caption.
     leg = ax.legend(
-        handles=handles, loc="upper left", bbox_to_anchor=(-0.02, 1.02),
-        frameon=False, labelspacing=1.2, handletextpad=1.0,
+        handles=handles, loc="upper left", bbox_to_anchor=(0.0, 1.0),
+        frameon=False, labelspacing=0.35, handletextpad=0.4,
+        handlelength=1.0, borderpad=0.0, borderaxespad=0.0,
         title=f"{args.column}\n(in total {total:,})",
-        fontsize=args.size * 1.05, title_fontsize=args.size * 1.15,
+        fontsize=args.size * 1.25, title_fontsize=args.size * 1.25,
     )
     leg.get_title().set_ha("left")
     leg.get_title().set_fontweight("bold")
+    leg._legend_box.align = "left"
     for text in leg.get_texts():
         text.set_color(theme["fg"])
     leg.get_title().set_color(theme["fg"])
@@ -213,6 +213,22 @@ def build(counts, args, theme):
     lim = r_max + gap * 1.6
     ax.set_xlim(-lim, lim)
     ax.set_ylim(-lim, lim)
+
+    # Year labels go on last, sized against the ribbon rather than against the
+    # figure: rotated 90 degrees their glyph height runs radially, so anything
+    # wider than the band spills over the gaps either side. Measuring the
+    # drawn transform keeps that true whatever --size/--dpi/--loop-gap are.
+    fig.canvas.draw()
+    px_per_unit = abs(ax.transData.transform((band_w, 0))[0]
+                      - ax.transData.transform((0, 0))[0])
+    band_pt = px_per_unit * 72.0 / fig.dpi
+    for year in range(year0, year1 + 1):
+        r = r0 + (year - year0) * gap
+        ax.text(
+            r * math.cos(START_ANGLE), r * math.sin(START_ANGLE), str(year),
+            ha="center", va="center", rotation=90, color=theme["fg"],
+            fontsize=band_pt * 0.95, family="DejaVu Sans", zorder=4,
+        )
     return fig
 
 
