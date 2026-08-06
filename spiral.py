@@ -3,8 +3,13 @@
 
 A Python port of the spiralize approach in jokergoo's "Spiral visualization of
 daily git commits". Angle encodes day-of-year, so the same calendar date lines
-up radially across every loop; radius encodes which year. Dot area encodes the
-day's count.
+up radially across every loop; radius encodes which year.
+
+Three ways to show the day's count, matching the three the post compares:
+
+  dots     -- dot area, spiral_points()
+  heatmap  -- the ribbon filled per day by colour, spiral_rect()
+  horizon  -- a horizon chart folded into the ribbon, spiral_horizon()
 
   ./.venv/bin/python spiral.py --in data/contributions.csv --out spiral.png
 """
@@ -20,12 +25,28 @@ import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+from matplotlib.collections import PolyCollection
+from matplotlib.colors import LinearSegmentedColormap, Normalize
 from matplotlib.lines import Line2D
+from matplotlib.patches import Patch
 
 THEMES = {
     "dark": dict(bg="#0d1117", fg="#e6edf3", muted="#7d8590", band="#1c2128"),
     "light": dict(bg="#ffffff", fg="#1f2328", muted="#656d76", band="#eaeaea"),
 }
+
+# RColorBrewer "Spectral" reversed -- cool for quiet days, warm for busy ones.
+# The ramp the post feeds to circlize::colorRamp2() for the heatmap.
+SPECTRAL_R = [
+    "#5E4FA2", "#3288BD", "#66C2A5", "#ABDDA4", "#E6F598", "#FFFFBF",
+    "#FEE08B", "#FDAE61", "#F46D43", "#D53E4F", "#9E0142",
+]
+
+# RColorBrewer "Reds", 4-class: one colour per horizon band, palest lowest.
+HORIZON_COLORS = ["#FEE5D9", "#FCAE91", "#FB6A4A", "#CB181D"]
+
+# How many slices the horizon chart folds the value range into.
+HORIZON_BANDS = 4
 
 # Jan 1 sits at 3 o'clock and time runs clockwise, so every loop begins on the
 # east axis -- which is what lets the year labels stack there as a ruler.
@@ -103,6 +124,104 @@ def band_polygon(year, year0, r0, loop_gap, width, steps=400):
     return outer + inner[::-1]
 
 
+def cell_polygon(day, year0, r0, loop_gap, band_w, lo, hi,
+                 normalize_year=True, steps=2):
+    """Polygon covering one day's angular slice of the ribbon.
+
+    `lo` and `hi` are fractions of the band width measured from its inner
+    edge, so the full ribbon is 0..1 and a horizon band is 0..frac. A couple of
+    angular steps keep the outer edge from visibly chording, since one day is
+    only about a degree.
+    """
+    doy = day.timetuple().tm_yday - 1
+    span = days_in_year(day.year) if normalize_year else 365
+    base = day.year - year0
+    off_lo = -band_w / 2 + lo * band_w
+    off_hi = -band_w / 2 + hi * band_w
+    outer, inner = [], []
+    for i in range(steps + 1):
+        t = (doy + i / steps) / span
+        progress = base + t
+        outer.append(polar(t, progress, r0 + off_hi, loop_gap))
+        inner.append(polar(t, progress, r0 + off_lo, loop_gap))
+    return outer + inner[::-1]
+
+
+def draw_dots(ax, days, counts, cap, args, theme, geom):
+    """Dot area encodes the count -- spiralize's spiral_points()."""
+    r0, gap, band_w = geom
+    xs, ys, sizes = [], [], []
+    for day in days:
+        v = counts[day]
+        if v <= 0:
+            continue
+        x, y = spiral_xy(day, days[0].year, r0, gap, args.normalize_year)
+        xs.append(x)
+        ys.append(y)
+        # scatter's `s` is area in points^2, so square the diameter.
+        sizes.append(calc_pt_size(v, cap, args.min_pt, args.max_pt) ** 2)
+    ax.scatter(xs, ys, s=sizes, color=theme["fg"], linewidths=0,
+               alpha=0.9, zorder=3)
+
+
+def draw_heatmap(ax, days, counts, cap, args, theme, geom):
+    """Colour fills the full ribbon width per day -- spiral_rect().
+
+    Zero days are left undrawn so the ribbon shows through as background,
+    which is what separates a quiet stretch from a low-but-nonzero one.
+    """
+    r0, gap, band_w = geom
+    cmap = LinearSegmentedColormap.from_list("spectral_r", SPECTRAL_R)
+    norm = Normalize(vmin=0, vmax=cap)
+    polys, colors = [], []
+    for day in days:
+        v = counts[day]
+        if v <= 0:
+            continue
+        polys.append(cell_polygon(day, days[0].year, r0, gap, band_w, 0.0, 1.0,
+                                  args.normalize_year))
+        colors.append(cmap(norm(min(v, cap))))
+    ax.add_collection(PolyCollection(polys, facecolors=colors, edgecolors="none",
+                                     zorder=3))
+    return cmap, norm
+
+
+def horizon_breaks(peak, bands=HORIZON_BANDS):
+    """Edges of the horizon slices, e.g. [0, 15, 30, 46, 61]."""
+    step = peak / bands
+    return [round(i * step) for i in range(bands + 1)]
+
+
+def draw_horizon(ax, days, counts, peak, args, theme, geom):
+    """A horizon chart folded into the ribbon -- spiral_horizon().
+
+    Every slice of the value range is drawn from the same inner baseline and
+    rescaled to the full ribbon height, so a day in the top slice reads as a
+    full-height bar in the darkest colour. Slices are laid down palest first
+    and the darker ones paint over them.
+    """
+    r0, gap, band_w = geom
+    edges = horizon_breaks(peak)
+    for i in range(HORIZON_BANDS):
+        lo_v, hi_v = edges[i], edges[i + 1]
+        span = hi_v - lo_v
+        if span <= 0:
+            continue
+        polys = []
+        for day in days:
+            v = counts[day]
+            if v <= lo_v:
+                continue
+            frac = min(v - lo_v, span) / span
+            polys.append(cell_polygon(day, days[0].year, r0, gap, band_w,
+                                      0.0, frac, args.normalize_year))
+        if polys:
+            ax.add_collection(PolyCollection(
+                polys, facecolors=HORIZON_COLORS[i], edgecolors="none",
+                zorder=3 + i))
+    return edges
+
+
 def size_ticks(cap, want=4):
     """Evenly stepped round values spanning the size scale.
 
@@ -123,7 +242,53 @@ def size_ticks(cap, want=4):
     return ticks or [max(1, int(cap))]
 
 
+def legend_block(ax, handles, caption, args, theme, handlelength=1.0,
+                 handleheight=0.7):
+    """Top-left inside the frame, as in spiralize's own output.
+
+    Rows packed tight enough that consecutive swatches nearly touch, swatches
+    in a narrow column, and a bold two-line title carrying the caption.
+    """
+    leg = ax.legend(
+        handles=handles, loc="upper left", bbox_to_anchor=(0.0, 1.0),
+        frameon=False, labelspacing=0.35, handletextpad=0.4,
+        handlelength=handlelength, handleheight=handleheight,
+        borderpad=0.0, borderaxespad=0.0,
+        title=caption,
+        fontsize=args.size * 1.25, title_fontsize=args.size * 1.25,
+    )
+    leg.get_title().set_ha("left")
+    leg.get_title().set_fontweight("bold")
+    leg._legend_box.align = "left"
+    for text in leg.get_texts():
+        text.set_color(theme["fg"])
+    leg.get_title().set_color(theme["fg"])
+    return leg
+
+
+def colorbar_block(fig, ax, cmap, norm, cap, caption, args, theme):
+    """Continuous scale for the heatmap, sat where the size legend would go."""
+    cax = ax.inset_axes([0.005, 0.64, 0.022, 0.20])
+    bar = fig.colorbar(plt.cm.ScalarMappable(norm=norm, cmap=cmap), cax=cax)
+    bar.set_ticks(size_ticks(cap))
+    bar.outline.set_visible(False)
+    cax.tick_params(length=2, width=0.6, pad=3, labelsize=args.size * 1.25,
+                    colors=theme["fg"])
+    ax.text(
+        0.0, 0.955, caption, transform=ax.transAxes, ha="left", va="top",
+        color=theme["fg"], fontweight="bold", fontsize=args.size * 1.25,
+        family="DejaVu Sans",
+    )
+    return bar
+
+
 def build(counts, args, theme):
+    """Draw the whole figure and return it.
+
+    Everything shared sits here -- ribbons, month spokes, year labels, limits.
+    Only the middle of the function varies by --style, dispatching to one of
+    the draw_* helpers and its matching legend.
+    """
     days = sorted(counts)
     year0, year1 = days[0].year, days[-1].year
     n_loops = year1 - year0 + 1
@@ -166,46 +331,36 @@ def build(counts, args, theme):
             linestyle=(0, (6, 4)), alpha=0.55,
         )
 
-    xs, ys, sizes = [], [], []
-    for day in days:
-        v = counts[day]
-        if v <= 0:
-            continue
-        x, y = spiral_xy(day, year0, r0, gap, args.normalize_year)
-        xs.append(x)
-        ys.append(y)
-        # scatter's `s` is area in points^2, so square the diameter.
-        sizes.append(calc_pt_size(v, cap, args.min_pt, args.max_pt) ** 2)
-
-    ax.scatter(xs, ys, s=sizes, color=theme["fg"], linewidths=0,
-               alpha=0.9, zorder=3)
-
+    geom = (r0, gap, band_w)
     total = sum(counts.values())
-    handles = [
-        Line2D(
-            [], [], marker="o", linestyle="none",
-            markersize=calc_pt_size(t, cap, args.min_pt, args.max_pt),
-            markerfacecolor=theme["fg"], markeredgewidth=0,
-            label=f"{t}" + ("+" if t >= cap else ""),
-        )
-        for t in size_ticks(cap)
-    ]
-    # Top-left inside the frame, as in spiralize's own output: rows packed
-    # tight enough that consecutive swatches nearly touch, dots in a narrow
-    # column, and a bold two-line title carrying the caption.
-    leg = ax.legend(
-        handles=handles, loc="upper left", bbox_to_anchor=(0.0, 1.0),
-        frameon=False, labelspacing=0.35, handletextpad=0.4,
-        handlelength=1.0, borderpad=0.0, borderaxespad=0.0,
-        title=f"{args.column}\n(in total {total:,})",
-        fontsize=args.size * 1.25, title_fontsize=args.size * 1.25,
-    )
-    leg.get_title().set_ha("left")
-    leg.get_title().set_fontweight("bold")
-    leg._legend_box.align = "left"
-    for text in leg.get_texts():
-        text.set_color(theme["fg"])
-    leg.get_title().set_color(theme["fg"])
+    caption = f"{args.column}\n(in total {total:,})"
+    peak = max(active)
+
+    if args.style == "dots":
+        draw_dots(ax, days, counts, cap, args, theme, geom)
+        handles = [
+            Line2D(
+                [], [], marker="o", linestyle="none",
+                markersize=calc_pt_size(t, cap, args.min_pt, args.max_pt),
+                markerfacecolor=theme["fg"], markeredgewidth=0,
+                label=f"{t}" + ("+" if t >= cap else ""),
+            )
+            for t in size_ticks(cap)
+        ]
+        legend_block(ax, handles, caption, args, theme)
+    elif args.style == "heatmap":
+        cmap, norm = draw_heatmap(ax, days, counts, cap, args, theme, geom)
+        colorbar_block(fig, ax, cmap, norm, cap, caption, args, theme)
+    else:
+        edges = draw_horizon(ax, days, counts, peak, args, theme, geom)
+        # Darkest slice on top, the way the post's legend reads.
+        handles = [
+            Patch(facecolor=HORIZON_COLORS[i], edgecolor="none",
+                  label=f"[{edges[i]}, {edges[i + 1]}]")
+            for i in reversed(range(HORIZON_BANDS))
+        ]
+        legend_block(ax, handles, caption, args, theme,
+                     handlelength=1.3, handleheight=1.3)
 
     # The legend title carries the caption, so a heading appears only on ask.
     if args.title:
@@ -237,6 +392,7 @@ def build(counts, args, theme):
 
 
 def main():
+    """Parse flags, render, and write the PNG plus an SVG twin."""
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--in", dest="infile", default="data/contributions.csv")
@@ -244,6 +400,10 @@ def main():
     ap.add_argument("--column", default="contributions",
                     choices=["contributions", "commits"])
     ap.add_argument("--theme", default="light", choices=list(THEMES))
+    ap.add_argument("--style", default="dots",
+                    choices=["dots", "heatmap", "horizon"],
+                    help="dots = area-scaled points; heatmap = the ribbon "
+                         "coloured per day; horizon = a folded horizon chart")
     ap.add_argument("--title")
     ap.add_argument("--cap", type=float, default=30.0,
                     help="floor for the dot-size ceiling (default 30, as in the post)")
