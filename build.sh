@@ -1,11 +1,14 @@
 #!/usr/bin/env bash
-# Render data/contributions.csv to docs/spiral.png -- the image the README
-# embeds, so rebuilding here updates the README too.
+# Render data/contributions.csv into docs/.
 #
-# No network and no token: re-run this as often as you like while tuning.
-# Extra flags pass through and override the defaults below, e.g.
-#   ./build.sh --theme dark
-#   ./build.sh --column commits --out docs/commits.png
+# With no arguments it refreshes every image the README embeds: all three
+# styles in both themes. No network and no token, so re-run it as often as you
+# like while tuning.
+#
+# Any argument switches to a single explicit render instead, with the flags
+# passed straight through to spiral.py:
+#   ./build.sh --style heatmap --out docs/heatmap-light.png
+#   ./build.sh --column commits --theme dark --out docs/commits.png
 set -euo pipefail
 cd "$(dirname "$0")"
 
@@ -17,7 +20,22 @@ if [[ ! -f data/contributions.csv ]]; then
   exit 1
 fi
 
-# --dpi 100 lands the PNG at ~870px: twice the 420px the README displays it at,
-# so it stays crisp on retina, and small enough that it still reads as a figure
-# rather than filling the page in a viewer that ignores the img width.
-exec "$PY" spiral.py --out docs/spiral.png --dpi 100 "$@"
+# --dpi 55 lands each PNG at ~475px, twice the 230px the README displays them
+# at, so they stay crisp on retina without committing six large binaries.
+DPI=55
+
+if (( $# )); then
+  exec "$PY" spiral.py --out docs/spiral.png --dpi "$DPI" "$@"
+fi
+
+# --no-svg on the batch: six vector twins is ~5 MB regenerated every run, all
+# of it gitignored and unread. An explicit render still writes one.
+for style in dots heatmap horizon; do
+  for theme in light dark; do
+    "$PY" spiral.py --style "$style" --theme "$theme" --dpi "$DPI" --no-svg \
+          --out "docs/$style-$theme.png"
+  done
+done
+
+echo
+ls -1 docs/*.png

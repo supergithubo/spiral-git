@@ -415,6 +415,9 @@ def main():
     ap.add_argument("--dpi", type=int, default=160)
     ap.add_argument("--no-normalize-year", dest="normalize_year",
                     action="store_false")
+    ap.add_argument("--no-svg", dest="svg", action="store_false",
+                    help="skip the SVG twin; each one is roughly 1 MB of "
+                         "individual scatter or cell elements")
     args = ap.parse_args()
 
     counts = read_counts(args.infile, args.column)
@@ -425,7 +428,7 @@ def main():
     print(f"wrote {args.out}", file=sys.stderr)
 
     stem, ext = os.path.splitext(args.out)
-    if ext.lower() != ".svg":
+    if args.svg and ext.lower() != ".svg":
         fig.savefig(stem + ".svg", facecolor=fig.get_facecolor(), bbox_inches="tight")
         print(f"wrote {stem}.svg", file=sys.stderr)
 
