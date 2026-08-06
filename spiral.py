@@ -34,6 +34,10 @@ START_ANGLE = 0.0
 # Fraction of the loop pitch filled by the ribbon; the remainder is the gap.
 BAND_FRACTION = 0.62
 
+# Year-label height as a fraction of the ribbon width. Digit cap-height is
+# roughly 0.7 em, so past about 1.4 the glyphs spill over the gaps either side.
+LABEL_BAND_RATIO = 0.85
+
 
 def days_in_year(year):
     return 366 if (year % 4 == 0 and year % 100 != 0) or year % 400 == 0 else 365
@@ -227,7 +231,7 @@ def build(counts, args, theme):
         ax.text(
             r * math.cos(START_ANGLE), r * math.sin(START_ANGLE), str(year),
             ha="center", va="center", rotation=90, color=theme["fg"],
-            fontsize=band_pt * 0.95, family="DejaVu Sans", zorder=4,
+            fontsize=band_pt * LABEL_BAND_RATIO, family="DejaVu Sans", zorder=4,
         )
     return fig
 
