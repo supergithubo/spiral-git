@@ -24,6 +24,12 @@ import sys
 import matplotlib
 
 matplotlib.use("Agg")
+# Keep SVG text as <text>, not as traced glyph outlines. Outlines cannot inherit
+# a font from the page that embeds them, cannot be selected, and cannot be read
+# by anything crawling the markup -- and they are bulkier besides. The consumer
+# supplies the font; a viewer without it falls back rather than getting the wrong
+# shapes baked in.
+matplotlib.rcParams["svg.fonttype"] = "none"
 import matplotlib.pyplot as plt
 from matplotlib.collections import PolyCollection
 from matplotlib.colors import LinearSegmentedColormap, Normalize
