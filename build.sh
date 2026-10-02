@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Render data/contributions.csv into docs/.
 #
-# With no arguments it refreshes every image the README embeds: all three
-# styles in both themes. No network and no token, so re-run it as often as you
-# like while tuning.
+# With no arguments it renders all three styles in both themes. No network and
+# no token, so re-run it as often as you like while tuning. docs/ is gitignored;
+# the README embeds committed copies in images/, refreshed by hand.
 #
 # Any argument switches to a single explicit render instead, with the flags
 # passed straight through to spiral.py:
