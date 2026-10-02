@@ -9,7 +9,7 @@ __pycache__/
 # README embeds it -- but the SVG beside it is ~1.2 MB of scatter points.
 data/
 out/
-docs/*.svg
+docs/*
 
 # Claude Code harness
 .claude/
