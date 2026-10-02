@@ -28,14 +28,12 @@ if (( $# )); then
   exec "$PY" spiral.py --out docs/spiral.png --dpi "$DPI" "$@"
 fi
 
-# --no-svg on the batch: six vector twins is ~5 MB regenerated every run, all
-# of it gitignored and unread. An explicit render still writes one.
 for style in dots heatmap horizon; do
   for theme in light dark; do
-    "$PY" spiral.py --style "$style" --theme "$theme" --dpi "$DPI" --no-svg \
+    "$PY" spiral.py --style "$style" --theme "$theme" --dpi "$DPI" \
           --out "docs/$style-$theme.png"
   done
 done
 
 echo
-ls -1 docs/*.png
+ls -1 docs/*.png docs/*.svg

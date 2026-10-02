@@ -89,9 +89,8 @@ passing the flags straight through:
 ./build.sh --column commits --theme dark --out docs/commits.png
 ```
 
-The batch skips the SVG twins (`--no-svg`), since six of them is about 5 MB
-regenerated every run and all of it gitignored. An explicit render still
-writes one alongside the PNG.
+Every render, batch or explicit, also writes an SVG twin beside each PNG
+(`docs/<style>-<theme>.svg`, gitignored, about 5 MB for all six).
 
 Fetch options:
 
@@ -152,7 +151,7 @@ colour bar for `heatmap`, labelled interval swatches for `horizon`.
 | `--no-normalize-year` | off | by default day-of-year is divided by that year's real length so leap years stay aligned; this turns that off |
 | `--title` | none | the legend title carries the caption, so a heading appears only if you ask for one |
 
-| `--no-svg` | off | skip the SVG twin; the batch build uses this |
+| `--no-svg` | off | skip the SVG twin |
 | `--adaptive-svg` | off | make the SVG follow the viewer's colour scheme — see below |
 
 An SVG is written alongside any non-SVG output unless `--no-svg` is passed.
@@ -177,8 +176,8 @@ Two limits worth knowing:
 
 - **Browsers only.** GitHub strips `<style>` out of the SVGs it serves, so this
   does nothing in a README. It is for your own site or a local viewer.
-- **Explicit renders only.** A bare `./build.sh` never applies it — the batch
-  writes no SVGs at all. Ask for it on a single render, as above.
+- **Explicit renders only.** A bare `./build.sh` writes plain SVGs, each with
+  its theme baked in. Ask for the adaptive one on a single render, as above.
 
 Two constants near the top of `spiral.py` control proportions the flags don't
 reach:
